@@ -22,7 +22,9 @@ from utils import calculate_perplexity, get_ptb_dataset, Vocab
 from utils import ptb_iterator, sample
 
 import tensorflow as tf
-from tensorflow.python.ops.seq2seq import sequence_loss
+#from tensorflow.python.ops.seq2seq import sequence_loss
+#TF CHANGE: What is the non-legacy seq2seq
+from tensorflow.contrib.legacy_seq2seq import sequence_loss
 from model import LanguageModel
 
 
@@ -158,7 +160,20 @@ class RNNLM_Model(LanguageModel):
     ### YOUR CODE HERE
     #raise NotImplementedError
     #code here is inspired/taken from: https://github.com/vijayvee/CS224d_Assignment_2_Solutions
+    shapeU = [self.config.hidden_size,  len(self.vocab)]
+    shapeB2 = [len(self.vocab)]
 
+    xavier_initializer = xavier_weight_init()
+
+    outputs = []
+
+    with tf.variable_scope("Project"):
+      U = tf.get_variable("uWeights", shape = shapeU, initializer = xavier_initializer)
+      b_2 = tf.get_variable("bias2", shape = shapeB2, initializer = xavier_initializer)
+      #For all the rnn_outputs (num_steps) of them, calculate o/p via U and b_2
+      for i in range(self.config.num_steps):
+        outTensor = tf.matmul(rnn_outputs[i], U) + b_2
+        outputs.append(outTensor)
     ### END YOUR CODE
     return outputs
 
@@ -173,7 +188,13 @@ class RNNLM_Model(LanguageModel):
       loss: A 0-d tensor (scalar)
     """
     ### YOUR CODE HERE
-    raise NotImplementedError
+    #raise NotImplementedError
+    #code here is inspired/taken from: https://github.com/vijayvee/CS224d_Assignment_2_Solutions
+    one = [tf.ones([self.config.batch_size*self.config.num_steps])]
+    ce = sequence_loss([output], [tf.reshape(self.labels_placeholder, [-1])], one, len(self.vocab))
+
+    tf.add_to_collection('ce_loss', ce)
+    loss = tf.add_n(tf.get_collection('ce_loss'))
     ### END YOUR CODE
     return loss
 
@@ -205,10 +226,11 @@ class RNNLM_Model(LanguageModel):
   #We are building a tree over here. or The tree over here.
   def __init__(self, config):
     self.config = config
-    self.load_data(debug=False)
-    self.add_placeholders()
-    self.inputs = self.add_embedding()
-    self.rnn_outputs = self.add_model(self.inputs)
+    self.load_data(debug=False)  #We'll get model.encoded_train/valid/test
+    self.add_placeholders()           # (?, num_steps)
+    self.inputs = self.add_embedding()  #Build the graph, to bring the inputs in vector form.
+    #                                                                   inputs is a list (size num_steps:10) of tensors, each of dimension; ?, embed_size:50
+    self.rnn_outputs = self.add_model(self.inputs) #It takes all the elements from inputs one by one, and produce an output. dim:
     self.outputs = self.add_projection(self.rnn_outputs)
 
     # We want to check how well we correctly predict the next word
@@ -264,20 +286,45 @@ class RNNLM_Model(LanguageModel):
     ### YOUR CODE HERE
     #raise NotImplementedError
     #self.initial_state = tf.get_variable("initial_state", (1, self.config.hidden_size), initializer = tf.random_normal_initializer(-1.0, 1.0))
-    h = tf.get_variable("h", (1, self.config.hidden_size), initializer = tf.constant_initializer(0.0))
-    H = tf.get_variable("H", (self.config.hidden_size, self.config.hidden_size), initializer = tf.random_normal_initializer(-1.0, 1.0))
-    I = tf.get_variable("I", (self.config.embed_size, self.config.hidden_size), initializer = tf.random_normal_initializer(-1.0, 1.0))
-    b1 = tf.get_variable("b1", (1, self.config.hidden_size), initializer = tf.random_normal_initializer(0.0))
+    self.initial_state = tf.zeros([self.config.batch_size, self.config.hidden_size])
 
-    tf.scope.reuse_variables()
+    #h = tf.get_variable("h", (1, self.config.hidden_size), initializer = tf.constant_initializer(0.0))
+    #H = tf.get_variable("H", (self.config.hidden_size, self.config.hidden_size), initializer = tf.random_normal_initializer(-1.0, 1.0))
+    #I = tf.get_variable("I", (self.config.embed_size, self.config.hidden_size), initializer = tf.random_normal_initializer(-1.0, 1.0))
+    #b1 = tf.get_variable("b1", (1, self.config.hidden_size), initializer = tf.random_normal_initializer(0.0))
 
-    h = tf.sigmoid(tf.matmul(tf.concat(H, I) , tf.concat(h, inputs) + b1 ))
+    #tf.scope.reuse_variables()
+
+    #h = tf.sigmoid(tf.matmul(tf.concat(H, I) , tf.concat(h, inputs) + b1 ))
     #rnn_outputs = tf
     ### END YOUR CODE
-    return h#rnn_outputs
+    #return h#rnn_outputs
+    xavier_initializer=xavier_weight_init()
+    shapeH=[self.config.hidden_size,self.config.hidden_size]
+    shapeI=[self.config.embed_size,self.config.hidden_size]
+    shapeB1=[self.config.hidden_size]
+    outputs=[]
+    with tf.variable_scope("InpDropout"):
+    	inputs=[tf.nn.dropout(i,self.dropout_placeholder) for i in inputs]
+    with tf.variable_scope("RNN") as scope:
+    	H=tf.get_variable("H",shape=shapeH,initializer=xavier_initializer)
+    	I=tf.get_variable("I",shape=shapeI,initializer=xavier_initializer)
+    	b_1=tf.get_variable("b_1",shape=shapeB1,initializer=xavier_initializer)
+    	outputs.append(self.initial_state)
+    	for i in range(self.config.num_steps):
+    		if(i!=0):
+    			scope.reuse_variables()
+    		hiddenTensor=tf.matmul(inputs[i],I) + tf.matmul(outputs[-1],H) + b_1
+    		outputs.append(tf.nn.sigmoid(hiddenTensor))
+    	self.final_state=outputs[-1]
+    	rnn_outputs=outputs[1:]
+    with tf.variable_scope("outDrop"):
+    	rnn_outputs=[tf.nn.dropout(i,self.dropout_placeholder) for i in rnn_outputs]
+    ### END YOUR CODE
+    return rnn_outputs
 
-
-  def run_epoch(self, session, data, train_op=None, verbose=10):
+    #                                model.encoded_train,                          = model.train_step)
+  def run_epoch(self, session, data,                                          train_op=None, verbose=10):
     config = self.config
     dp = config.dropout
     if not train_op:
@@ -305,7 +352,12 @@ class RNNLM_Model(LanguageModel):
       sys.stdout.write('\r')
     return np.exp(np.mean(total_loss))
 
-def generate_text(session, model, config, starting_text='<eos>',
+
+
+#This method has been rewritten.
+#May be in future, I would come back and try to understand how to work with existing model.
+#I am pretty sure, it is also effectively doing what I have done in the fucntion which I have implemented (below this function)
+def generate_text_dep(session, model, config, starting_text='<eos>',
                   stop_length=100, stop_tokens=None, temp=1.0):
   """Generate text from the model.
 
@@ -339,6 +391,98 @@ def generate_text(session, model, config, starting_text='<eos>',
   output = [model.vocab.decode(word_idx) for word_idx in tokens]
   return output
 
+
+
+
+def generate_text(session, model, config, starting_text='<eos>',
+                  stop_length=10, stop_tokens=None, temp=1.0):
+  '''
+  In this function, I am extractintg the trained parameters from the existing graph and then
+  build a model, actualy same model which was trained, and then computing the next word.
+
+  I am simply assigning the hidden state to all zeros, then depending on the seed word, it woudl be brought to some state, from where, things woudl take place.
+  '''
+  #print dir(model)
+  #print dir(session)
+  #print session.graph
+  #print dir(session.graph)
+  #print session.graph.as_graph_element
+  #print session.graph.get_all_collection_keys() #['ce_loss', 'trainable_variables', 'variables', 'train_op']
+  for v in session.graph.get_collection('variables'):
+    print v.name #First variable is L
+    break
+
+  #if True:
+  #  return
+
+  #print session.graph.unique_name()
+  #print dir(session.graph.as_graph_element)
+  with tf.variable_scope("RNNLM", reuse = True):
+    #L = tf.get_variable(0)
+    L = session.run(tf.cast(v, 'float64'))
+    with tf.variable_scope("RNN", reuse = True) as scope:
+      H=session.run(tf.cast(tf.get_variable("H"), 'float64'))#,shape=shapeH,initializer=xavier_initializer)
+      I=session.run(tf.cast(tf.get_variable("I"), 'float64'))#,shape=shapeI,initializer=xavier_initializer)
+      b_1=session.run(tf.cast(tf.get_variable("b_1"), 'float64'))#,shape=shapeB1,initializer=xavier_initializer)
+      #print "Shape of parameters"
+      #print H.shape
+      #print I.shape
+      #print b_1.shape
+    with tf.variable_scope("Project"):
+      U=session.run(tf.cast(tf.get_variable("uWeights"), 'float64'))
+      b_2=session.run(tf.cast(tf.get_variable("bias2"), 'float64'))
+
+
+
+  #Building our model here.
+  #Create variables
+  #print L.shape
+  #print type(L[0])
+  with tf.variable_scope("Pred") as scope:
+    LP = tf.get_variable("L", initializer = L, dtype='float64')
+    HP = tf.get_variable("H", initializer = H, dtype='float64')
+    IP = tf.get_variable("I", initializer = I, dtype='float64')
+    b_1P = tf.get_variable("b_1", initializer = b_1, dtype='float64')
+    UP = tf.get_variable("U", initializer = U, dtype='float64')
+    b_2P = tf.get_variable("b_2", initializer = b_2, dtype='float64')
+    hP = tf.get_variable("h", initializer = np.zeros((1, 100)).view('float64'), dtype='float64')
+
+    #First till prediction (but isn't it same?)
+    x = tf.placeholder(tf.int32, shape=[1])
+
+    emb = tf.nn.embedding_lookup(LP, x)
+    hiddenTensor=tf.matmul(emb,IP) + tf.matmul(hP,HP) + b_1P
+    scope.reuse_variables()
+    hP = tf.nn.sigmoid(hiddenTensor)
+
+    #Now, moving on to predicting the word.
+    pred = tf.nn.softmax( tf.cast( tf.matmul(hP, UP) + b_2P, 'float64'))
+
+    #Now, updating the value of hP
+    tokens = [model.vocab.encode(word) for word in starting_text.split()]
+    #h = np.zeros((1, 100)) #Should it be sth else?
+
+    session.run(tf.initialize_all_variables())
+    output = []
+    for t in tokens:
+      #h = np.dot(L[t].reshape(1,50) , I) + np.dot(h, H)
+      #print h
+      _, y_p = session.run([hP, pred], feed_dict={x:[t]})
+      #print type(y_p)
+      #print y_p.shape
+      #print np.argmax(y_p)
+      #print model.vocab.decode(np.argmax(y_p))
+
+    for i in xrange(stop_length):
+      nw = sample(y_p[0], temperature=temp)
+      #print model.vocab.decode(nw)
+      output.append(model.vocab.decode(nw))
+      _, y_p = session.run([hP, pred], feed_dict={x:[nw]}) #np.argmax(y_p)
+      if stop_tokens and model.vocab.decode(nw) in stop_tokens:
+        break
+    #
+    return output
+
 def generate_sentence(session, model, config, *args, **kwargs):
   """Convenice to generate a sentence from the model."""
   return generate_text(session, model, config, *args, stop_tokens=['<eos>'], **kwargs)
@@ -352,8 +496,9 @@ def test_RNNLM():
   with tf.variable_scope('RNNLM') as scope:
     model = RNNLM_Model(config)######HERE#############
     # This instructs gen_model to reuse the same variables as the model above
-    scope.reuse_variables()
-    gen_model = RNNLM_Model(gen_config) #Why can't we simply pass the same config, why deep copy?
+    #scope.reuse_variables()
+    #Commenting it, as it is giving some error.
+    #gen_model = RNNLM_Model(gen_config) #Why can't we simply pass the same config, why deep copy?
 
   init = tf.initialize_all_variables()
   saver = tf.train.Saver()
@@ -390,7 +535,7 @@ def test_RNNLM():
     starting_text = 'in palo alto'
     while starting_text:
       print ' '.join(generate_sentence(
-          session, gen_model, gen_config, starting_text=starting_text, temp=1.0))
+          session, model, gen_config, starting_text=starting_text, temp=1.0))
       starting_text = raw_input('> ')
 
 if __name__ == "__main__":
