@@ -7,5 +7,7 @@ I feel, while I got a basic understanding of DNN, but to really concretize the g
 
 Also TensorFlow has gone through quite some changes while the course was created. However, enough material is present on net to incorporate the changes needed. 
 
-A lot of code for assignment 2 is inspired/taken from: https://github.com/vijayvee/CS224d_Assignment_2_Solutions
+- The forward and backprop equations have been derived at: https://aknirala.github.io/CS224D/FowdBkws.html
+- A lot of code for assignment 2 is inspired/taken from: https://github.com/vijayvee/CS224d_Assignment_2_Solutions
+
  
