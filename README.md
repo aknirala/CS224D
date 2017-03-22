@@ -3,9 +3,9 @@ CS 224D course was really wonderful. I wish I had access to all the video lectur
 
 I was finally able to complete the assignments for CS 224D. (Except assignment 3 2nd part for which I was not able to find the zip file.) Pushing the initial commit for now (may be in future would refine it).
 
-I feel, while I got a basic understanding of DNN, but to really concretize the gates and other components which were designed using NN, I need to do a lot of hands on. 
+After doing this course, I got a basic understanding of DNN in NLP. To make my understadning a bit concrete I need to impliment few of thee DNN structures being talked in the course. Would do that separately, while mastering TensorFlow.
 
-Also TensorFlow has gone through quite some changes while the course was created. However, enough material is present on net to incorporate the changes needed. 
+TensorFlow has gone through quite some changes from the time when the course was created. However, enough material is present on net to incorporate the changes needed. 
 
 - The forward and backprop equations have been derived at: https://aknirala.github.io/CS224D/FowdBkws.html
 - Assignment1 folder contains a pdf where for problem 4, cost function and it's derivation, as needed, has been calculated. It contains the images.
