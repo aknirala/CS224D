@@ -8,6 +8,8 @@ I feel, while I got a basic understanding of DNN, but to really concretize the g
 Also TensorFlow has gone through quite some changes while the course was created. However, enough material is present on net to incorporate the changes needed. 
 
 - The forward and backprop equations have been derived at: https://aknirala.github.io/CS224D/FowdBkws.html
+- Assignment1 folder contains a pdf where for problem 4, cost function and it's derivation, as needed, has been calculated. It contains the images.
+- I have not searched for optimal parameters, nor I have used dropout everywhere (I just needed to get to know what DNN in NLP were all about).
 - A lot of code for assignment 2 is inspired/taken from: https://github.com/vijayvee/CS224d_Assignment_2_Solutions
 
  
